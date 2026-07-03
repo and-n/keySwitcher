@@ -13,8 +13,8 @@ Early development. See [`PLAN.md`](PLAN.md) for the roadmap.
 
 - [x] Stage 0 — menu bar app skeleton, Accessibility onboarding
 - [x] Stage 1 — global keystroke interception and in-memory buffer
-- [x] Stage 2 — layout conversion engine (`UCKeyTranslate`) + text replacement *(engine done & tested; hotkey wiring next)*
-- [ ] Stage 3 — hotkeys and live layout indicator
+- [x] Stage 2 — layout conversion engine (`UCKeyTranslate`) + text replacement
+- [x] Stage 3 — hotkeys (⌥⇧S / double-Shift), conversion trigger, live layout indicator
 - [ ] Stage 4 — selection conversion
 - [ ] Stage 5 — settings window
 - [ ] Stage 6 — signed & notarized release
