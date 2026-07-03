@@ -15,7 +15,7 @@ struct SettingsView: View {
         // Grouped forms are List-backed and have no intrinsic height, so the
         // hosting window collapses without an explicit one.
         .frame(width: 460, height: 380)
-    }привет как tlfk
+    }
 }
 
 private struct GeneralTab: View {
