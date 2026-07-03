@@ -25,9 +25,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startCore() {
-        if core == nil { core = SwitcherCore() }
-        let running = core?.start() ?? false
+        let core = self.core ?? SwitcherCore()
+        self.core = core
+
+        let running = core.start()
         statusBarController?.setActive(running)
+
+        statusBarController?.onConvert = { [weak core] in
+            core?.performConvertMenuAction()
+        }
+        statusBarController?.onTogglePause = { [weak core, weak statusBarController] in
+            core?.togglePause()
+            statusBarController?.setPaused(core?.isPaused ?? false)
+        }
     }
 
     // MARK: - Accessibility onboarding

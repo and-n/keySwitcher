@@ -2,15 +2,19 @@ import AppKit
 import Carbon.HIToolbox
 import os
 
-/// Wires the event tap, keystroke buffer and converter together.
-/// Everything runs on the main thread.
+/// Wires the event tap, keystroke buffer, hotkey detector and converter
+/// together. Everything runs on the main thread.
 final class SwitcherCore {
     private let eventTap = EventTapManager()
     private let keyBuffer = KeyBuffer()
     private let converter = LayoutConverter()
+    private let hotkeys = HotkeyDetector()
+    private let replacer = TextReplacer()
     private let log = Logger(subsystem: "com.tonevitskiy.keySwitcher", category: "core")
 
     private var workspaceObserver: NSObjectProtocol?
+
+    private(set) var isPaused = false
 
     // Keys after which the buffer no longer matches what precedes the caret.
     private static let resetKeyCodes: Set<CGKeyCode> = [
@@ -23,8 +27,12 @@ final class SwitcherCore {
     private static let backspaceKeyCode: CGKeyCode = 51
 
     func start() -> Bool {
+        hotkeys.onTrigger = { [weak self] in self?.convertLastWord() }
         eventTap.keyDownHandler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
+        }
+        eventTap.flagsChangedHandler = { [weak self] event in
+            self?.hotkeys.handleFlagsChanged(event)
         }
         eventTap.mouseDownHandler = { [weak self] in
             self?.keyBuffer.reset()
@@ -48,8 +56,25 @@ final class SwitcherCore {
         workspaceObserver = nil
     }
 
-    /// Returns true when the event must be swallowed (hotkeys — stage 3).
+    func togglePause() {
+        isPaused.toggle()
+        if isPaused { keyBuffer.reset() }
+    }
+
+    func setHotkey(_ hotkey: Hotkey) {
+        hotkeys.hotkey = hotkey
+    }
+
+    /// Convert triggered from the menu rather than the hotkey.
+    func performConvertMenuAction() {
+        convertLastWord()
+    }
+
+    /// Returns true when the event must be swallowed.
     private func handleKeyDown(_ event: CGEvent) -> Bool {
+        // Hotkey first, so its chord letter is never typed or recorded.
+        if hotkeys.handleKeyDown(event) { return true }
+
         // Password fields and the like: record nothing at all.
         guard !IsSecureEventInputEnabled() else { return false }
 
@@ -74,12 +99,33 @@ final class SwitcherCore {
 
         guard let sourceID = InputSourceManager.currentSourceID() else { return false }
         keyBuffer.append(KeyStroke(keyCode: keyCode, flags: flags, inputSourceID: sourceID))
-
-        #if DEBUG
-        let word = converter.text(for: keyBuffer.lastWord())
-        log.debug("last word: \(word, privacy: .public)")
-        #endif
-
         return false
+    }
+
+    private func convertLastWord() {
+        guard !isPaused else { return }
+        let strokes = keyBuffer.lastWord()
+        guard let lastStroke = strokes.last else { return }
+
+        // What is currently on screen, in the layout(s) it was typed in.
+        let currentText = converter.text(for: strokes)
+        guard !currentText.isEmpty else { return }
+
+        guard let pair = InputSourceManager.currentPair(),
+              let targetID = pair.other(than: lastStroke.inputSourceID) else {
+            log.info("No unambiguous layout pair — conversion skipped")
+            return
+        }
+
+        let converted = converter.text(for: strokes, inLayout: targetID)
+        guard !converted.isEmpty, converted != currentText else { return }
+
+        // Defer the actual typing off the tap callback to avoid re-entrancy.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.replacer.replace(charactersToErase: currentText.count, with: converted)
+            InputSourceManager.select(id: targetID)
+            self.keyBuffer.retagLastWord(to: targetID)
+        }
     }
 }

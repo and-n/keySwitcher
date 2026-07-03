@@ -5,11 +5,11 @@ import Foundation
 /// Unicode text events. All events are tagged with the synthetic marker so
 /// our own tap passes them through without recording.
 final class TextReplacer {
-    private let eventSource: CGEventSource
+    private let eventSource: CGEventSource?
 
-    init?() {
-        guard let source = CGEventSource(stateID: .combinedSessionState) else { return nil }
-        source.userData = EventTapManager.syntheticEventMarker
+    init() {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        source?.userData = EventTapManager.syntheticEventMarker
         eventSource = source
     }
 

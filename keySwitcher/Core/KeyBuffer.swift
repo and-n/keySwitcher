@@ -5,8 +5,9 @@ import CoreGraphics
 struct KeyStroke {
     let keyCode: CGKeyCode
     let flags: CGEventFlags
-    /// Input source that was active when the key was pressed.
-    let inputSourceID: String
+    /// Input source the key is interpreted in. Mutable so a conversion can
+    /// re-tag the strokes to the target layout, making a repeat hotkey undo it.
+    var inputSourceID: String
 }
 
 /// Ring buffer of recent keystrokes. Lives in memory only and is never
@@ -39,17 +40,29 @@ final class KeyBuffer {
     /// Tail of the buffer covering the last word plus separators typed after
     /// it, so replacing the tail preserves a trailing space.
     func lastWord() -> [KeyStroke] {
-        guard let lastChar = strokes.lastIndex(where: { !Self.separators.contains($0.keyCode) }) else {
-            return []
-        }
-        let start = strokes[..<lastChar]
-            .lastIndex(where: { Self.separators.contains($0.keyCode) })
-            .map { strokes.index(after: $0) } ?? strokes.startIndex
-        return Array(strokes[start...])
+        guard let range = lastWordRange() else { return [] }
+        return Array(strokes[range])
+    }
+
+    /// Re-tags the last word's strokes to a new layout after conversion, so a
+    /// repeat hotkey converts them back.
+    func retagLastWord(to inputSourceID: String) {
+        guard let range = lastWordRange() else { return }
+        for i in range { strokes[i].inputSourceID = inputSourceID }
     }
 
     /// Everything typed since the last reset (phrase conversion).
     func all() -> [KeyStroke] {
         strokes
+    }
+
+    private func lastWordRange() -> Range<Int>? {
+        guard let lastChar = strokes.lastIndex(where: { !Self.separators.contains($0.keyCode) }) else {
+            return nil
+        }
+        let start = strokes[..<lastChar]
+            .lastIndex(where: { Self.separators.contains($0.keyCode) })
+            .map { $0 + 1 } ?? 0
+        return start ..< strokes.count
     }
 }
