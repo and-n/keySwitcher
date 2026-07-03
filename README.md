@@ -16,7 +16,7 @@ Early development. See [`PLAN.md`](PLAN.md) for the roadmap.
 - [x] Stage 2 — layout conversion engine (`UCKeyTranslate`) + text replacement
 - [x] Stage 3 — hotkeys (⌥⇧S / double-Shift), conversion trigger, live layout indicator
 - [x] Stage 4 — selection conversion (⌥⇧D) via Accessibility, clipboard fallback
-- [ ] Stage 5 — settings window
+- [x] Stage 5 — settings window (hotkeys, layout pair, launch at login)
 - [ ] Stage 6 — signed & notarized release
 
 ## Privacy

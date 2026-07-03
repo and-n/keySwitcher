@@ -48,6 +48,15 @@ enum InputSourceManager {
         return list.filter(isSelectableKeyboardLayout)
     }
 
+    /// (id, localized name) for each installed layout — for the settings picker.
+    static func installedLayoutInfos() -> [(id: String, name: String)] {
+        installedLayouts().compactMap { source in
+            guard let id = sourceID(of: source) else { return nil }
+            let name = stringProperty(source, kTISPropertyLocalizedName) ?? id
+            return (id, name)
+        }
+    }
+
     /// Resolves the working pair: an explicit override if still valid, else
     /// the two installed layouts when exactly two exist, else nil (ambiguous —
     /// the user must choose in settings).

@@ -12,9 +12,11 @@ final class SwitcherCore {
     private let selectionHotkeys = HotkeyDetector()
     private let replacer = TextReplacer()
     private lazy var selectionConverter = SelectionConverter(converter: converter, replacer: replacer)
+    private let store = SettingsStore.shared
     private let log = Logger(subsystem: "com.tonevitskiy.keySwitcher", category: "core")
 
     private var workspaceObserver: NSObjectProtocol?
+    private var settingsObserver: NSObjectProtocol?
 
     private(set) var isPaused = false
 
@@ -29,9 +31,7 @@ final class SwitcherCore {
     private static let backspaceKeyCode: CGKeyCode = 51
 
     func start() -> Bool {
-        hotkeys.hotkey = .optionShiftS
-        // Selection conversion: Option+Shift+D (keycode 2 == ANSI "D").
-        selectionHotkeys.hotkey = .combo(keyCode: 2, modifiers: [.maskShift, .maskAlternate])
+        applySettings()
 
         hotkeys.onTrigger = { [weak self] in self?.convertLastWord() }
         selectionHotkeys.onTrigger = { [weak self] in self?.convertSelection() }
@@ -53,6 +53,13 @@ final class SwitcherCore {
         ) { [weak self] _ in
             self?.keyBuffer.reset()
         }
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: SettingsStore.didChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applySettings()
+        }
         return eventTap.start()
     }
 
@@ -62,7 +69,20 @@ final class SwitcherCore {
         if let workspaceObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(workspaceObserver)
         }
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+        }
         workspaceObserver = nil
+        settingsObserver = nil
+    }
+
+    private func applySettings() {
+        hotkeys.hotkey = store.wordHotkey
+        selectionHotkeys.hotkey = store.selectionHotkey
+    }
+
+    private func resolvedPair() -> LayoutPair? {
+        InputSourceManager.currentPair(override: store.layoutPairOverride)
     }
 
     func togglePause() {
@@ -125,7 +145,7 @@ final class SwitcherCore {
         let currentText = converter.text(for: strokes)
         guard !currentText.isEmpty else { return }
 
-        guard let pair = InputSourceManager.currentPair(),
+        guard let pair = resolvedPair(),
               let targetID = pair.other(than: lastStroke.inputSourceID) else {
             log.info("No unambiguous layout pair — conversion skipped")
             return
@@ -145,9 +165,13 @@ final class SwitcherCore {
 
     private func convertSelection() {
         guard !isPaused else { return }
+        guard let pair = resolvedPair() else {
+            log.info("No unambiguous layout pair — selection conversion skipped")
+            return
+        }
         // Defer off the tap callback; the converter posts its own events.
         DispatchQueue.main.async { [weak self] in
-            self?.selectionConverter.convert()
+            self?.selectionConverter.convert(pair: pair)
         }
     }
 }

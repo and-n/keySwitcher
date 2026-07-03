@@ -7,6 +7,7 @@ final class StatusBarController {
     var onConvert: (() -> Void)?
     var onConvertSelection: (() -> Void)?
     var onTogglePause: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
 
     private let statusItem: NSStatusItem
     private var pauseItem: NSMenuItem?
@@ -67,9 +68,8 @@ final class StatusBarController {
 
         menu.addItem(.separator())
 
-        // Settings window arrives in stage 5.
-        let settings = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: ",")
-        settings.isEnabled = false
+        let settings = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
+        settings.target = self
         menu.addItem(settings)
 
         menu.addItem(NSMenuItem(title: "Quit keySwitcher", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -80,4 +80,5 @@ final class StatusBarController {
     @objc private func convertClicked() { onConvert?() }
     @objc private func convertSelectionClicked() { onConvertSelection?() }
     @objc private func pauseClicked() { onTogglePause?() }
+    @objc private func settingsClicked() { onOpenSettings?() }
 }

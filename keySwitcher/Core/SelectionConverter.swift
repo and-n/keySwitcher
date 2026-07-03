@@ -18,11 +18,7 @@ final class SelectionConverter {
         self.replacer = replacer
     }
 
-    func convert() {
-        guard let pair = InputSourceManager.currentPair() else {
-            log.info("No unambiguous layout pair — selection conversion skipped")
-            return
-        }
+    func convert(pair: LayoutPair) {
         if convertViaAccessibility(pair: pair) { return }
         convertViaPasteboard(pair: pair)
     }

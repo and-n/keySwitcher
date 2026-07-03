@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissions = PermissionsService()
     private var core: SwitcherCore?
     private var onboardingWindow: NSWindow?
+    private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let statusBar = StatusBarController()
@@ -41,6 +42,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             core?.togglePause()
             statusBarController?.setPaused(core?.isPaused ?? false)
         }
+        statusBarController?.onOpenSettings = { [weak self] in
+            self?.showSettings()
+        }
+    }
+
+    private func showSettings() {
+        if settingsWindow == nil {
+            let view = SettingsView(settings: .shared)
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.title = "keySwitcher Settings"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     // MARK: - Accessibility onboarding
