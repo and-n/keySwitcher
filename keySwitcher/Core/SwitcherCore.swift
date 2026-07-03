@@ -9,7 +9,9 @@ final class SwitcherCore {
     private let keyBuffer = KeyBuffer()
     private let converter = LayoutConverter()
     private let hotkeys = HotkeyDetector()
+    private let selectionHotkeys = HotkeyDetector()
     private let replacer = TextReplacer()
+    private lazy var selectionConverter = SelectionConverter(converter: converter, replacer: replacer)
     private let log = Logger(subsystem: "com.tonevitskiy.keySwitcher", category: "core")
 
     private var workspaceObserver: NSObjectProtocol?
@@ -27,12 +29,19 @@ final class SwitcherCore {
     private static let backspaceKeyCode: CGKeyCode = 51
 
     func start() -> Bool {
+        hotkeys.hotkey = .optionShiftS
+        // Selection conversion: Option+Shift+D (keycode 2 == ANSI "D").
+        selectionHotkeys.hotkey = .combo(keyCode: 2, modifiers: [.maskShift, .maskAlternate])
+
         hotkeys.onTrigger = { [weak self] in self?.convertLastWord() }
+        selectionHotkeys.onTrigger = { [weak self] in self?.convertSelection() }
+
         eventTap.keyDownHandler = { [weak self] event in
             self?.handleKeyDown(event) ?? false
         }
         eventTap.flagsChangedHandler = { [weak self] event in
             self?.hotkeys.handleFlagsChanged(event)
+            self?.selectionHotkeys.handleFlagsChanged(event)
         }
         eventTap.mouseDownHandler = { [weak self] in
             self?.keyBuffer.reset()
@@ -70,10 +79,15 @@ final class SwitcherCore {
         convertLastWord()
     }
 
+    func performConvertSelectionMenuAction() {
+        convertSelection()
+    }
+
     /// Returns true when the event must be swallowed.
     private func handleKeyDown(_ event: CGEvent) -> Bool {
-        // Hotkey first, so its chord letter is never typed or recorded.
+        // Hotkeys first, so their chord letters are never typed or recorded.
         if hotkeys.handleKeyDown(event) { return true }
+        if selectionHotkeys.handleKeyDown(event) { return true }
 
         // Password fields and the like: record nothing at all.
         guard !IsSecureEventInputEnabled() else { return false }
@@ -126,6 +140,14 @@ final class SwitcherCore {
             self.replacer.replace(charactersToErase: currentText.count, with: converted)
             InputSourceManager.select(id: targetID)
             self.keyBuffer.retagLastWord(to: targetID)
+        }
+    }
+
+    private func convertSelection() {
+        guard !isPaused else { return }
+        // Defer off the tap callback; the converter posts its own events.
+        DispatchQueue.main.async { [weak self] in
+            self?.selectionConverter.convert()
         }
     }
 }

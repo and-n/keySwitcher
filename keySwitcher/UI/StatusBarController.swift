@@ -5,6 +5,7 @@ import Carbon.HIToolbox
 /// (EN/RU) and hosts the menu.
 final class StatusBarController {
     var onConvert: (() -> Void)?
+    var onConvertSelection: (() -> Void)?
     var onTogglePause: (() -> Void)?
 
     private let statusItem: NSStatusItem
@@ -55,6 +56,10 @@ final class StatusBarController {
         convert.target = self
         menu.addItem(convert)
 
+        let convertSelection = NSMenuItem(title: "Convert Selection", action: #selector(convertSelectionClicked), keyEquivalent: "")
+        convertSelection.target = self
+        menu.addItem(convertSelection)
+
         let pause = NSMenuItem(title: "Pause", action: #selector(pauseClicked), keyEquivalent: "")
         pause.target = self
         menu.addItem(pause)
@@ -73,5 +78,6 @@ final class StatusBarController {
     }
 
     @objc private func convertClicked() { onConvert?() }
+    @objc private func convertSelectionClicked() { onConvertSelection?() }
     @objc private func pauseClicked() { onTogglePause?() }
 }

@@ -27,6 +27,17 @@ final class TextReplacer {
         }
     }
 
+    /// Posts a modifier chord (e.g. Cmd+C) as a marked synthetic event.
+    func postKeyChord(keyCode: CGKeyCode, flags: CGEventFlags) {
+        guard let down = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: false) else { return }
+        down.flags = flags
+        up.flags = flags
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        usleep(5_000)
+    }
+
     private func postKeyPress(keyCode: CGKeyCode) {
         guard let down = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: false) else { return }

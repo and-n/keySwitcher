@@ -2,22 +2,82 @@ import Carbon.HIToolbox
 import CoreGraphics
 import os
 
-/// Translates keystrokes into characters for a given keyboard layout via
-/// UCKeyTranslate. Works for any layout pair — no hardcoded tables.
+/// Translates between keyboard layouts via UCKeyTranslate. Works for any
+/// layout pair — no hardcoded tables.
+///
+/// Two modes:
+/// - keycode-based (`characters(for:)`) for freshly typed text, where the
+///   physical keys are known;
+/// - character-based (`convertSelection(_:pair:)`) for already-displayed text,
+///   where only the characters are known and the keys must be inferred.
 final class LayoutConverter {
+    private struct KeyMapping {
+        let keyCode: CGKeyCode
+        let shift: Bool
+    }
+
     private var layoutDataCache: [String: Data] = [:]
+    private var reverseMapCache: [String: [Character: KeyMapping]] = [:]
     private let log = Logger(subsystem: "com.tonevitskiy.keySwitcher", category: "converter")
 
+    // MARK: - Keycode-based (typed text)
+
     /// Character(s) produced by a keystroke in the given layout (defaults to
-    /// the layout the stroke was typed in). Nil for non-character keys and
-    /// for input methods that expose no key layout data.
+    /// the layout the stroke was typed in).
     func characters(for stroke: KeyStroke, inLayout sourceID: String? = nil) -> String? {
         guard let data = layoutData(for: sourceID ?? stroke.inputSourceID) else { return nil }
+        return translate(
+            keyCode: stroke.keyCode,
+            shift: stroke.flags.contains(.maskShift),
+            capsLock: stroke.flags.contains(.maskAlphaShift),
+            data: data
+        )
+    }
 
+    /// Readable form of a stroke sequence.
+    func text(for strokes: [KeyStroke], inLayout sourceID: String? = nil) -> String {
+        strokes.compactMap { characters(for: $0, inLayout: sourceID) }.joined()
+    }
+
+    // MARK: - Character-based (selected text)
+
+    /// Re-interprets already-typed text in the other layout of the pair.
+    /// The whole selection's dominant script decides the direction, so mixed
+    /// punctuation doesn't flip conversion mid-string.
+    func convertSelection(_ text: String, pair: LayoutPair) -> String {
+        guard !text.isEmpty,
+              let dataA = layoutData(for: pair.a),
+              let dataB = layoutData(for: pair.b) else {
+            return text
+        }
+        let mapA = reverseMap(for: pair.a)
+        let mapB = reverseMap(for: pair.b)
+
+        // Pick the source layout as the one that can type more of the letters.
+        let scoreA = text.reduce(0) { $0 + ($1.isLetter && mapA[$1] != nil ? 1 : 0) }
+        let scoreB = text.reduce(0) { $0 + ($1.isLetter && mapB[$1] != nil ? 1 : 0) }
+        let (sourceMap, targetData) = scoreA >= scoreB ? (mapA, dataB) : (mapB, dataA)
+
+        var result = ""
+        result.reserveCapacity(text.count)
+        for ch in text {
+            if let mapping = sourceMap[ch],
+               let translated = translate(keyCode: mapping.keyCode, shift: mapping.shift, capsLock: false, data: targetData) {
+                result += translated
+            } else {
+                result.append(ch)
+            }
+        }
+        return result
+    }
+
+    // MARK: - Low-level translation
+
+    private func translate(keyCode: CGKeyCode, shift: Bool, capsLock: Bool, data: Data) -> String? {
         // UCKeyTranslate takes EventRecord-style modifiers shifted right by 8.
         var modifiers: UInt32 = 0
-        if stroke.flags.contains(.maskShift) { modifiers |= UInt32(shiftKey >> 8) }
-        if stroke.flags.contains(.maskAlphaShift) { modifiers |= UInt32(alphaLock >> 8) }
+        if shift { modifiers |= UInt32(shiftKey >> 8) }
+        if capsLock { modifiers |= UInt32(alphaLock >> 8) }
 
         var deadKeyState: UInt32 = 0
         var chars = [UniChar](repeating: 0, count: 4)
@@ -29,7 +89,7 @@ final class LayoutConverter {
             }
             return UCKeyTranslate(
                 layout,
-                UInt16(stroke.keyCode),
+                UInt16(keyCode),
                 UInt16(kUCKeyActionDown),
                 modifiers,
                 UInt32(LMGetKbdType()),
@@ -45,9 +105,34 @@ final class LayoutConverter {
         return String(utf16CodeUnits: chars, count: length)
     }
 
-    /// Readable form of a stroke sequence (debug logging, conversion).
-    func text(for strokes: [KeyStroke], inLayout sourceID: String? = nil) -> String {
-        strokes.compactMap { characters(for: $0, inLayout: sourceID) }.joined()
+    /// character -> (keyCode, shift) for a layout. Built once per layout by
+    /// walking every key with and without Shift.
+    private func reverseMap(for sourceID: String) -> [Character: KeyMapping] {
+        if let cached = reverseMapCache[sourceID] { return cached }
+        guard let data = layoutData(for: sourceID) else { return [:] }
+
+        var map: [Character: KeyMapping] = [:]
+        for keyCode in CGKeyCode(0)...CGKeyCode(127) {
+            for shift in [false, true] {
+                guard let produced = translate(keyCode: keyCode, shift: shift, capsLock: false, data: data),
+                      produced.count == 1,
+                      let ch = produced.first,
+                      isPrintable(ch) else {
+                    continue
+                }
+                // Prefer the unshifted binding for a character (checked first).
+                if map[ch] == nil {
+                    map[ch] = KeyMapping(keyCode: keyCode, shift: shift)
+                }
+            }
+        }
+        reverseMapCache[sourceID] = map
+        return map
+    }
+
+    private func isPrintable(_ ch: Character) -> Bool {
+        guard let scalar = ch.unicodeScalars.first, ch.unicodeScalars.count == 1 else { return false }
+        return scalar.value >= 0x20 && scalar.value != 0x7F
     }
 
     private func layoutData(for sourceID: String) -> Data? {

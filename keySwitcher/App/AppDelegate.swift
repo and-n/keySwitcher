@@ -34,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController?.onConvert = { [weak core] in
             core?.performConvertMenuAction()
         }
+        statusBarController?.onConvertSelection = { [weak core] in
+            core?.performConvertSelectionMenuAction()
+        }
         statusBarController?.onTogglePause = { [weak core, weak statusBarController] in
             core?.togglePause()
             statusBarController?.setPaused(core?.isPaused ?? false)
