@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # No Developer ID yet: build-release.sh ad-hoc signs the app. Once a
+      # certificate is available, import it here and set DEVELOPER_ID /
+      # NOTARY_PROFILE so the script signs and notarizes instead.
+      - name: Build DMG
+        run: ./scripts/build-release.sh
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/keySwitcher.dmg
+          fail_on_unmatched_files: true
+          body: |
+            Unsigned (ad-hoc) build. macOS Gatekeeper will block it until you run:
+
+            ```
+            xattr -d com.apple.quarantine /Applications/keySwitcher.app
+            ```
+
+            See the README for details and the Accessibility permission setup.
