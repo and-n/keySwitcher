@@ -17,8 +17,12 @@ final class SwitcherCore {
 
     private var workspaceObserver: NSObjectProtocol?
     private var settingsObserver: NSObjectProtocol?
+    private var recordingObserver: NSObjectProtocol?
 
     private(set) var isPaused = false
+    /// True while the settings recorder is capturing a chord; hotkey matching
+    /// is suspended so the chord reaches the recorder instead of firing here.
+    private var isRecordingHotkey = false
 
     // Keys after which the buffer no longer matches what precedes the caret.
     private static let resetKeyCodes: Set<CGKeyCode> = [
@@ -40,8 +44,9 @@ final class SwitcherCore {
             self?.handleKeyDown(event) ?? false
         }
         eventTap.flagsChangedHandler = { [weak self] event in
-            self?.hotkeys.handleFlagsChanged(event)
-            self?.selectionHotkeys.handleFlagsChanged(event)
+            guard let self, !self.isRecordingHotkey else { return }
+            self.hotkeys.handleFlagsChanged(event)
+            self.selectionHotkeys.handleFlagsChanged(event)
         }
         eventTap.mouseDownHandler = { [weak self] in
             self?.keyBuffer.reset()
@@ -60,6 +65,13 @@ final class SwitcherCore {
         ) { [weak self] _ in
             self?.applySettings()
         }
+        recordingObserver = NotificationCenter.default.addObserver(
+            forName: .hotkeyRecording,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            self?.isRecordingHotkey = note.userInfo?["isRecording"] as? Bool ?? false
+        }
         return eventTap.start()
     }
 
@@ -72,8 +84,12 @@ final class SwitcherCore {
         if let settingsObserver {
             NotificationCenter.default.removeObserver(settingsObserver)
         }
+        if let recordingObserver {
+            NotificationCenter.default.removeObserver(recordingObserver)
+        }
         workspaceObserver = nil
         settingsObserver = nil
+        recordingObserver = nil
     }
 
     private func applySettings() {
@@ -105,6 +121,10 @@ final class SwitcherCore {
 
     /// Returns true when the event must be swallowed.
     private func handleKeyDown(_ event: CGEvent) -> Bool {
+        // While the settings recorder is capturing, pass everything through
+        // untouched so the chord lands in the recorder field.
+        guard !isRecordingHotkey else { return false }
+
         // Hotkeys first, so their chord letters are never typed or recorded.
         if hotkeys.handleKeyDown(event) { return true }
         if selectionHotkeys.handleKeyDown(event) { return true }

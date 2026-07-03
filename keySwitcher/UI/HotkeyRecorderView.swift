@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    /// Posted when the recorder starts or stops capturing, with
+    /// `userInfo["isRecording"]` as a Bool. The core stops matching hotkeys
+    /// while true so the chord being recorded isn't swallowed by the event tap.
+    static let hotkeyRecording = Notification.Name("keySwitcher.hotkeyRecording")
+}
+
 /// A field that records a key chord (a key plus at least one modifier) and
 /// reports it as a `.combo` hotkey. Modifier-only hotkeys like double-Shift are
 /// offered as presets, not recorded here.
@@ -8,20 +15,27 @@ struct HotkeyRecorderView: NSViewRepresentable {
     @Binding var hotkey: Hotkey
 
     func makeNSView(context: Context) -> RecorderButton {
-        let button = RecorderButton()
-        button.onRecord = { hotkey = $0 }
-        return button
+        RecorderButton()
     }
 
     func updateNSView(_ nsView: RecorderButton, context: Context) {
         nsView.hotkey = hotkey
+        nsView.onRecord = { hotkey = $0 }
     }
 
     final class RecorderButton: NSButton {
         var hotkey: Hotkey = .optionShiftS { didSet { refreshTitle() } }
         var onRecord: ((Hotkey) -> Void)?
         private var isRecording = false {
-            didSet { refreshTitle() }
+            didSet {
+                guard isRecording != oldValue else { return }
+                refreshTitle()
+                NotificationCenter.default.post(
+                    name: .hotkeyRecording,
+                    object: nil,
+                    userInfo: ["isRecording": isRecording]
+                )
+            }
         }
 
         override init(frame: NSRect) {
@@ -45,6 +59,22 @@ struct HotkeyRecorderView: NSViewRepresentable {
         override func resignFirstResponder() -> Bool {
             isRecording = false
             return super.resignFirstResponder()
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            // Closing the window mid-recording must not leave the core
+            // ignoring hotkeys forever.
+            if newWindow == nil { isRecording = false }
+            super.viewWillMove(toWindow: newWindow)
+        }
+
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            // ⌘-chords arrive as key equivalents, never as keyDown.
+            guard isRecording, event.type == .keyDown else {
+                return super.performKeyEquivalent(with: event)
+            }
+            keyDown(with: event)
+            return true
         }
 
         override func keyDown(with event: NSEvent) {

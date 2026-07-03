@@ -12,9 +12,10 @@ struct SettingsView: View {
             LayoutsTab(settings: settings)
                 .tabItem { Label("Layouts", systemImage: "globe") }
         }
-        .frame(width: 460)
-        .padding(20)
-    }
+        // Grouped forms are List-backed and have no intrinsic height, so the
+        // hosting window collapses without an explicit one.
+        .frame(width: 460, height: 380)
+    }привет как tlfk
 }
 
 private struct GeneralTab: View {
@@ -55,6 +56,14 @@ private struct HotkeysTab: View {
 /// One hotkey row: a preset picker plus a recorder shown for the Custom preset.
 private struct HotkeyRow: View {
     @Binding var hotkey: Hotkey
+    /// Custom mode is UI state, not derivable from the hotkey: choosing Custom
+    /// keeps the previous chord active until a new one is recorded.
+    @State private var customSelected: Bool
+
+    init(hotkey: Binding<Hotkey>) {
+        _hotkey = hotkey
+        _customSelected = State(initialValue: !Self.presets.contains { $0.hotkey == hotkey.wrappedValue })
+    }
 
     private static let presets: [(name: String, hotkey: Hotkey)] = [
         ("⌥⇧S", .combo(keyCode: 1, modifiers: [.maskShift, .maskAlternate])),
@@ -63,18 +72,14 @@ private struct HotkeyRow: View {
         ("Double ⇧", .doubleShift),
     ]
 
-    private var isCustom: Bool {
-        !Self.presets.contains { $0.hotkey == hotkey }
-    }
-
     var body: some View {
         Picker("Shortcut", selection: selection) {
             ForEach(Self.presets, id: \.name) { preset in
                 Text(preset.name).tag(preset.name)
             }
-            Text("Custom: \(hotkey.displayString)").tag("custom")
+            Text(customSelected ? "Custom: \(hotkey.displayString)" : "Custom…").tag("custom")
         }
-        if isCustom || selection.wrappedValue == "custom" {
+        if customSelected {
             HStack {
                 Text("Custom shortcut")
                 Spacer()
@@ -86,10 +91,16 @@ private struct HotkeyRow: View {
 
     private var selection: Binding<String> {
         Binding(
-            get: { Self.presets.first { $0.hotkey == hotkey }?.name ?? "custom" },
+            get: {
+                if customSelected { return "custom" }
+                return Self.presets.first { $0.hotkey == hotkey }?.name ?? "custom"
+            },
             set: { name in
                 if let preset = Self.presets.first(where: { $0.name == name }) {
+                    customSelected = false
                     hotkey = preset.hotkey
+                } else {
+                    customSelected = true
                 }
             }
         )
