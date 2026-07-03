@@ -1,0 +1,52 @@
+name: keySwitcher
+options:
+  bundleIdPrefix: com.tonevitskiy
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+targets:
+  keySwitcher:
+    type: application
+    platform: macOS
+    sources:
+      - keySwitcher
+    info:
+      path: keySwitcher/App/Info.plist
+      properties:
+        CFBundleDisplayName: keySwitcher
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.utilities
+        NSHumanReadableCopyright: "© 2026 Andrey Tonevitskiy. MIT License."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tonevitskiy.keySwitcher
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ZABVR4K6L7
+
+  keySwitcherTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - keySwitcherTests
+    dependencies:
+      - target: keySwitcher
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tonevitskiy.keySwitcherTests
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ZABVR4K6L7
+        GENERATE_INFOPLIST_FILE: true
+
+schemes:
+  keySwitcher:
+    build:
+      targets:
+        keySwitcher: all
+    test:
+      targets:
+        - keySwitcherTests
