@@ -29,9 +29,12 @@ final class SelectionConverter {
         let system = AXUIElementCreateSystemWide()
         var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focusedElement = focused else {
+              let focusedElement = focused,
+              CFGetTypeID(focusedElement) == AXUIElementGetTypeID() else {
             return false
         }
+        // CFTypeRef has no conditional cast; type-checked above.
+        // swiftlint:disable:next force_cast
         let element = focusedElement as! AXUIElement
 
         var selected: CFTypeRef?

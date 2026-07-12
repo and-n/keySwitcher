@@ -1,0 +1,19 @@
+included:
+  - keySwitcher
+  - keySwitcherTests
+
+# The codebase favors readable one-liners and API-mandated patterns;
+# keep the noise down.
+disabled_rules:
+  - line_length          # doc comments and CGEvent call sites run long
+  - identifier_name      # short names like `a`, `b` (layout pair) are idiomatic here
+  - trailing_comma       # multiline literals keep trailing commas in this codebase
+  - todo
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_not_nil
+
+force_cast: error
+force_try: error
