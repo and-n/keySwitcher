@@ -28,6 +28,7 @@ targets:
         SWIFT_VERSION: "5.0"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ZABVR4K6L7
+        ENABLE_HARDENED_RUNTIME: YES
 
   keySwitcherTests:
     type: bundle.unit-test

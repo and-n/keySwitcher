@@ -10,17 +10,65 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
+    env:
+      DEVELOPER_ID: ${{ secrets.DEVELOPER_ID }}
+      NOTARY_PROFILE: keyswitcher-notary
     steps:
       - uses: actions/checkout@v4
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      # No Developer ID yet: build-release.sh ad-hoc signs the app. Once a
-      # certificate is available, import it here and set DEVELOPER_ID /
-      # NOTARY_PROFILE so the script signs and notarizes instead.
-      - name: Build DMG
+      # Import the Developer ID Application certificate into a throwaway keychain
+      # so codesign can find the signing identity, then expose that keychain to
+      # later steps. The keychain is deleted in the cleanup step.
+      - name: Import Developer ID certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/developer_id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      # Store the notarytool credentials as a profile inside the same keychain,
+      # so build-release.sh can notarize with --keychain-profile.
+      - name: Store notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --keychain "$KEYCHAIN_PATH"
+
+      # With DEVELOPER_ID, NOTARY_PROFILE and NOTARY_KEYCHAIN all set,
+      # build-release.sh signs, notarizes and staples the DMG.
+      - name: Build, sign & notarize DMG
         run: ./scripts/build-release.sh
+
+      - name: Clean up keychain
+        if: ${{ always() }}
+        run: |
+          if [[ -n "${KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -28,10 +76,8 @@ jobs:
           files: build/keySwitcher.dmg
           fail_on_unmatched_files: true
           body: |
-            Unsigned (ad-hoc) build. macOS Gatekeeper will block it until you run:
+            Signed with a Developer ID certificate and notarized by Apple.
 
-            ```
-            xattr -d com.apple.quarantine /Applications/keySwitcher.app
-            ```
-
-            See the README for details and the Accessibility permission setup.
+            Open the DMG and drag keySwitcher to Applications — no quarantine
+            workaround needed. See the README for the Accessibility permission
+            setup.

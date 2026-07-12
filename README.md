@@ -26,16 +26,10 @@ layout data.
 ### From a release
 
 Download `keySwitcher.dmg` from the [Releases](../../releases) page, open it and
-drag the app to Applications.
+drag the app to Applications. Releases are signed with a Developer ID and
+notarized by Apple, so they launch without any Gatekeeper workaround.
 
-Because the app is not yet notarized (no Apple Developer ID — see Status),
-Gatekeeper will block it on first launch. Remove the quarantine flag once:
-
-```sh
-xattr -dr com.apple.quarantine /Applications/keySwitcher.app
-```
-
-Then launch it and grant the Accessibility permission (see below).
+On first launch, grant the Accessibility permission (see below).
 
 ### Homebrew (tap)
 
@@ -48,10 +42,6 @@ On first launch macOS asks for the **Accessibility** permission
 (System Settings → Privacy & Security → Accessibility). It is required to read
 keystrokes and replace text; the app polls until it is granted and then starts
 automatically. The menu bar icon is dimmed until then.
-
-> While developing, rebuilding can change the app's code signature and macOS may
-> drop the Accessibility grant — re-enable keySwitcher in the list if the icon
-> stays dimmed. A stable Developer ID signature avoids this.
 
 ## Privacy
 
@@ -87,20 +77,17 @@ Build a distributable `.dmg` (universal, ad-hoc signed):
 ./scripts/build-release.sh
 ```
 
-Set `DEVELOPER_ID` (and `NOTARY_PROFILE`) to sign and notarize once a
-certificate is available.
+With a `Developer ID Application` identity, set `DEVELOPER_ID` and
+`NOTARY_PROFILE` to also sign, notarize and staple the app and DMG.
 
-## Status
+> Ad-hoc debug builds change signature on each rebuild, so macOS may drop the
+> Accessibility grant — re-enable keySwitcher in the list if the icon stays
+> dimmed. Notarized releases keep a stable signature and avoid this.
 
-MVP feature-complete; packaging in progress. See [`PLAN.md`](PLAN.md).
+## Roadmap
 
-- [x] Stage 0 — menu bar app skeleton, Accessibility onboarding
-- [x] Stage 1 — global keystroke interception and in-memory buffer
-- [x] Stage 2 — layout conversion engine (`UCKeyTranslate`) + text replacement
-- [x] Stage 3 — hotkeys (⌥⇧S / double-Shift), conversion trigger, live layout indicator
-- [x] Stage 4 — selection conversion (⌥⇧D) via Accessibility, clipboard fallback
-- [x] Stage 5 — settings window (hotkeys, layout pair, launch at login)
-- [x] Stage 6 — release packaging (`.dmg`, CI); **notarization pending a Developer ID**
+Automatic dictionary-based layout switching (no hotkey) and per-app exclusions
+are planned; see [`PLAN.md`](PLAN.md).
 
 ## License
 
