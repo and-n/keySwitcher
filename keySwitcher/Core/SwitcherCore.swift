@@ -177,8 +177,10 @@ final class SwitcherCore {
         // Defer the actual typing off the tap callback to avoid re-entrancy.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.replacer.replace(charactersToErase: currentText.count, with: converted)
+            // Switch the layout *before* typing: doing it afterwards lets the
+            // input-source change race the still-in-flight synthetic text.
             InputSourceManager.select(id: targetID)
+            self.replacer.replace(charactersToErase: currentText.count, with: converted)
             self.keyBuffer.retagLastWord(to: targetID)
         }
     }

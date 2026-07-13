@@ -8,7 +8,12 @@ final class TextReplacer {
     private let eventSource: CGEventSource?
 
     init() {
-        let source = CGEventSource(stateID: .combinedSessionState)
+        // Private state, not combinedSessionState: the hotkey's modifiers
+        // (e.g. ⌥⇧) are often still physically held when a replacement runs.
+        // A combined-state source merges those held modifiers into our events
+        // despite `flags = []`, turning Backspace into ⌥⌫ (delete word) and
+        // corrupting the Unicode insert — the word vanishes on the first press.
+        let source = CGEventSource(stateID: .privateState)
         source?.userData = EventTapManager.syntheticEventMarker
         eventSource = source
     }

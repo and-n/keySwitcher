@@ -51,6 +51,7 @@ final class SelectionConverter {
             log.debug("AX set selected text failed (\(result.rawValue)), falling back to clipboard")
             return false
         }
+        InputSourceManager.select(id: converter.targetLayout(for: text, pair: pair))
         return true
     }
 
@@ -74,6 +75,7 @@ final class SelectionConverter {
             pasteboard.clearContents()
             pasteboard.setString(converted, forType: .string)
             self.replacer.postKeyChord(keyCode: self.vKeyCode, flags: .maskCommand)
+            InputSourceManager.select(id: self.converter.targetLayout(for: text, pair: pair))
         }
     }
 

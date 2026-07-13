@@ -50,13 +50,9 @@ final class LayoutConverter {
               let dataB = layoutData(for: pair.b) else {
             return text
         }
-        let mapA = reverseMap(for: pair.a)
-        let mapB = reverseMap(for: pair.b)
-
-        // Pick the source layout as the one that can type more of the letters.
-        let scoreA = text.reduce(0) { $0 + ($1.isLetter && mapA[$1] != nil ? 1 : 0) }
-        let scoreB = text.reduce(0) { $0 + ($1.isLetter && mapB[$1] != nil ? 1 : 0) }
-        let (sourceMap, targetData) = scoreA >= scoreB ? (mapA, dataB) : (mapB, dataA)
+        let sourceIsA = sourceLayoutIsA(text, pair: pair)
+        let sourceMap = sourceIsA ? reverseMap(for: pair.a) : reverseMap(for: pair.b)
+        let targetData = sourceIsA ? dataB : dataA
 
         var result = ""
         result.reserveCapacity(text.count)
@@ -69,6 +65,22 @@ final class LayoutConverter {
             }
         }
         return result
+    }
+
+    /// The layout `convertSelection` would translate `text` into — i.e. the one
+    /// the system should switch to after fixing a selection.
+    func targetLayout(for text: String, pair: LayoutPair) -> String {
+        sourceLayoutIsA(text, pair: pair) ? pair.b : pair.a
+    }
+
+    /// Whether the text reads as layout A (its keys type more of the letters in
+    /// A than in B). A ties go to A, matching `convertSelection`'s direction.
+    private func sourceLayoutIsA(_ text: String, pair: LayoutPair) -> Bool {
+        let mapA = reverseMap(for: pair.a)
+        let mapB = reverseMap(for: pair.b)
+        let scoreA = text.reduce(0) { $0 + ($1.isLetter && mapA[$1] != nil ? 1 : 0) }
+        let scoreB = text.reduce(0) { $0 + ($1.isLetter && mapB[$1] != nil ? 1 : 0) }
+        return scoreA >= scoreB
     }
 
     // MARK: - Low-level translation

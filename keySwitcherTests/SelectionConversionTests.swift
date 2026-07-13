@@ -47,4 +47,13 @@ final class SelectionConversionTests: XCTestCase {
         // Digits and spaces exist identically in both layouts.
         XCTAssertEqual(converter.convertSelection("ghbdtn 123", pair: pair), "привет 123")
     }
+
+    func testTargetLayoutFollowsConversionDirection() throws {
+        let pair = try requirePair()
+        let converter = LayoutConverter()
+        // Latin selection converts to Russian -> switch the system to Russian.
+        XCTAssertEqual(converter.targetLayout(for: "ghbdtn", pair: pair), russian)
+        // Russian selection converts to Latin -> switch the system to ABC.
+        XCTAssertEqual(converter.targetLayout(for: "привет", pair: pair), abc)
+    }
 }
